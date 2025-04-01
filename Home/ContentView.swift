@@ -7,6 +7,9 @@
 
 import SwiftUI
 
+// MARK: - Import Models to access Bill structure
+import Foundation
+
 // Add TimeFrame enum at the top, after NavigationItem declaration
 enum TimeFrame: String, CaseIterable, Identifiable {
     case week = "Week"
@@ -14,33 +17,6 @@ enum TimeFrame: String, CaseIterable, Identifiable {
     case quarter = "Quarter"
     case year = "Year"
     
-    var id: String { self.rawValue }
-}
-
-// Add this after existing enums but before ContentView
-struct Bill: Identifiable {
-    let id = UUID()
-    var name: String
-    var amount: Double
-    var dueDate: Date
-    var isRecurring: Bool
-    var category: BillCategory
-    var isPaid: Bool = false
-    
-    enum BillCategory: String, CaseIterable, Identifiable {
-        case utilities = "Utilities"
-        case housing = "Housing"
-        case transportation = "Transportation"
-        case insurance = "Insurance"
-        case entertainment = "Entertainment"
-        case other = "Other"
-        
-        var id: String { self.rawValue }
-        
-        var icon: String {
-            switch self {
-            case .utilities: return "bolt.fill"
-            case .housing: return "house.fill"
             case .transportation: return "car.fill"
             case .insurance: return "shield.fill"
             case .entertainment: return "tv.fill"

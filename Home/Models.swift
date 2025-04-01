@@ -41,7 +41,32 @@ struct Bill: Identifiable {
     var name: String
     var amount: Double
     var dueDate: Date
+    var isRecurring: Bool = false
+    var category: BillCategory = .utilities
     var isPaid: Bool = false
+    
+    // Bill categories enum
+    enum BillCategory: String, CaseIterable, Identifiable {
+        case utilities = "Utilities"
+        case housing = "Housing"
+        case transportation = "Transportation"
+        case insurance = "Insurance"
+        case entertainment = "Entertainment"
+        case other = "Other"
+        
+        var id: String { self.rawValue }
+        
+        var icon: String {
+            switch self {
+            case .utilities: return "bolt.fill"
+            case .housing: return "house.fill"
+            case .transportation: return "car.fill"
+            case .insurance: return "shield.fill"
+            case .entertainment: return "tv.fill"
+            case .other: return "doc.fill"
+            }
+        }
+    }
 }
 
 struct Vehicle: Identifiable {
@@ -69,9 +94,9 @@ enum BillingCycle: String, CaseIterable {
 // Sample data for dashboard widgets
 class SampleData {
     static let upcomingBills = [
-        Bill(name: "Electricity", amount: 145.50, dueDate: Date().addingTimeInterval(86400 * 3)),
-        Bill(name: "Internet", amount: 89.99, dueDate: Date().addingTimeInterval(86400 * 5)),
-        Bill(name: "Water", amount: 65.25, dueDate: Date().addingTimeInterval(86400 * 10))
+        Bill(name: "Electricity", amount: 145.50, dueDate: Date().addingTimeInterval(86400 * 3), isRecurring: true, category: .utilities),
+        Bill(name: "Internet", amount: 89.99, dueDate: Date().addingTimeInterval(86400 * 5), isRecurring: true, category: .utilities),
+        Bill(name: "Water", amount: 65.25, dueDate: Date().addingTimeInterval(86400 * 10), isRecurring: true, category: .utilities)
     ]
     
     static let subscriptions = [
