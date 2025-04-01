@@ -8,10 +8,13 @@
 import SwiftUI
 
 @main
-struct HomeApp: App {
+struct GharApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .frame(minWidth: 800, minHeight: 600)
         }
+        .windowStyle(HiddenTitleBarWindowStyle())
+        .windowToolbarStyle(UnifiedWindowToolbarStyle())
     }
 }
