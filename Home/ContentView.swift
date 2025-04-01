@@ -7,6 +7,49 @@
 
 import SwiftUI
 
+// Add TimeFrame enum at the top, after NavigationItem declaration
+enum TimeFrame: String, CaseIterable, Identifiable {
+    case week = "Week"
+    case month = "Month"
+    case quarter = "Quarter"
+    case year = "Year"
+    
+    var id: String { self.rawValue }
+}
+
+// Add this after existing enums but before ContentView
+struct Bill: Identifiable {
+    let id = UUID()
+    var name: String
+    var amount: Double
+    var dueDate: Date
+    var isRecurring: Bool
+    var category: BillCategory
+    var isPaid: Bool = false
+    
+    enum BillCategory: String, CaseIterable, Identifiable {
+        case utilities = "Utilities"
+        case housing = "Housing"
+        case transportation = "Transportation"
+        case insurance = "Insurance"
+        case entertainment = "Entertainment"
+        case other = "Other"
+        
+        var id: String { self.rawValue }
+        
+        var icon: String {
+            switch self {
+            case .utilities: return "bolt.fill"
+            case .housing: return "house.fill"
+            case .transportation: return "car.fill"
+            case .insurance: return "shield.fill"
+            case .entertainment: return "tv.fill"
+            case .other: return "doc.fill"
+            }
+        }
+    }
+}
+
 struct ContentView: View {
     @State private var selectedNavItem: NavigationItem? = .dashboard
     @State private var isSearching = false
@@ -927,11 +970,9 @@ struct AddVehicleView: View {
                     TextField("Nickname (e.g. Family SUV)", text: $name)
                     TextField("Make & Model", text: $model)
                     TextField("Year", text: $year)
-                        .keyboardType(.numberPad)
                     TextField("License Plate", text: $licensePlate)
                     TextField("VIN (optional)", text: $vin)
                     TextField("Current Mileage", text: $currentMileage)
-                        .keyboardType(.numberPad)
                 }
                 
                 Section {
@@ -981,7 +1022,6 @@ struct UpdateMileageView: View {
                     }
                     
                     TextField("Current Mileage", text: $mileage)
-                        .keyboardType(.numberPad)
                     
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                 }
@@ -2181,10 +2221,12 @@ struct FinancialTipsView: View {
                     .padding(.vertical, 8)
                 }
             }
-            .listStyle(InsetGroupedListStyle())
+            // Change ListStyle for macOS
+            .listStyle(DefaultListStyle())
             .navigationTitle("Financial Tips")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                // Use ToolbarItem with default placement for macOS
+                ToolbarItem {
                     Button("Done") {
                         presentationMode.wrappedValue.dismiss()
                     }
@@ -2419,6 +2461,802 @@ struct ExpensesCard: View {
             return "$2,271.00"
         }
     }
+}
+
+// MARK: - Bills View
+struct BillsView: View {
+    @State private var selectedTab = 0
+    @State private var showAddBill = false
+    @State private var searchText = ""
+    
+    // Sample bills data
+    private let bills = [
+        Bill(name: "Electricity", amount: 125.50, dueDate: Date().addingTimeInterval(86400 * 5), isRecurring: true, category: .utilities),
+        Bill(name: "Water", amount: 78.30, dueDate: Date().addingTimeInterval(86400 * 10), isRecurring: true, category: .utilities),
+        Bill(name: "Mortgage", amount: 1450.00, dueDate: Date().addingTimeInterval(86400 * 15), isRecurring: true, category: .housing),
+        Bill(name: "Internet", amount: 89.99, dueDate: Date().addingTimeInterval(86400 * 20), isRecurring: true, category: .utilities),
+        Bill(name: "Car Payment", amount: 375.00, dueDate: Date().addingTimeInterval(86400 * 8), isRecurring: true, category: .transportation)
+    ]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            // Header
+            HStack {
+                Text("Bills")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .foregroundColor(GharTheme.textPrimary)
+                
+                Spacer()
+                
+                // Search field
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(GharTheme.textSecondary)
+                    
+                    TextField("Search bills...", text: $searchText)
+                        .textFieldStyle(PlainTextFieldStyle())
+                }
+                .padding(8)
+                .background(GharTheme.cardBackground)
+                .cornerRadius(8)
+                .frame(width: 220)
+                
+                Button(action: { showAddBill = true }) {
+                    Label("Add Bill", systemImage: "plus")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(GharTheme.accent)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                }
+            }
+            
+            // Bill summary cards
+            HStack(spacing: 20) {
+                BillSummaryCard(title: "Total Due", value: "$\(totalDue())", icon: "dollarsign.circle.fill", color: .blue)
+                BillSummaryCard(title: "Due This Week", value: dueThisWeek(), icon: "calendar", color: .red)
+                BillSummaryCard(title: "Due Next Week", value: dueNextWeek(), icon: "calendar.badge.clock", color: .orange)
+                BillSummaryCard(title: "Paid This Month", value: "$1,245.80", icon: "checkmark.circle.fill", color: .green)
+            }
+            
+            // Tabs
+            HStack(spacing: 20) {
+                TabButton(title: "Upcoming", isActive: selectedTab == 0) {
+                    selectedTab = 0
+                }
+                
+                TabButton(title: "History", isActive: selectedTab == 1) {
+                    selectedTab = 1
+                }
+                
+                TabButton(title: "Recurring", isActive: selectedTab == 2) {
+                    selectedTab = 2
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 8)
+            
+            // Tab content
+            if selectedTab == 0 {
+                UpcomingBillsView(bills: sortedBills)
+            } else if selectedTab == 1 {
+                BillHistoryView()
+            } else {
+                RecurringBillsView(bills: recurringBills)
+            }
+            
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(GharTheme.background)
+        .sheet(isPresented: $showAddBill) {
+            AddBillView(isPresented: $showAddBill)
+        }
+    }
+    
+    private var sortedBills: [Bill] {
+        bills.sorted { $0.dueDate < $1.dueDate }
+    }
+    
+    private var recurringBills: [Bill] {
+        bills.filter { $0.isRecurring }
+    }
+    
+    private func totalDue() -> String {
+        let total = bills.reduce(0) { $0 + $1.amount }
+        return String(format: "%.2f", total)
+    }
+    
+    private func dueThisWeek() -> String {
+        let today = Date()
+        let endOfWeek = Calendar.current.date(byAdding: .day, value: 7, to: today)!
+        let thisWeekBills = bills.filter { $0.dueDate >= today && $0.dueDate <= endOfWeek }
+        let total = thisWeekBills.reduce(0) { $0 + $1.amount }
+        return "$" + String(format: "%.2f", total)
+    }
+    
+    private func dueNextWeek() -> String {
+        let startNextWeek = Calendar.current.date(byAdding: .day, value: 7, to: Date())!
+        let endNextWeek = Calendar.current.date(byAdding: .day, value: 14, to: Date())!
+        let nextWeekBills = bills.filter { $0.dueDate >= startNextWeek && $0.dueDate <= endNextWeek }
+        let total = nextWeekBills.reduce(0) { $0 + $1.amount }
+        return "$" + String(format: "%.2f", total)
+    }
+}
+
+// Tab Button for bill view
+struct TabButton: View {
+    var title: String
+    var isActive: Bool
+    var action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(isActive ? GharTheme.accent : GharTheme.textSecondary)
+                .padding(.bottom, 8)
+                .overlay(
+                    Rectangle()
+                        .frame(height: 2)
+                        .foregroundColor(isActive ? GharTheme.accent : Color.clear)
+                        .offset(y: 4),
+                    alignment: .bottom
+                )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// Placeholder tab for unimplemented content
+struct PlaceholderTab: View {
+    var title: String
+    
+    var body: some View {
+        VStack {
+            Spacer()
+            
+            Image(systemName: "hammer.fill")
+                .font(.system(size: 40))
+                .foregroundColor(GharTheme.textSecondary.opacity(0.5))
+                .padding(.bottom, 16)
+            
+            Text("\(title) coming soon")
+                .font(.headline)
+                .foregroundColor(GharTheme.textSecondary)
+            
+            Spacer()
+        }
+        .frame(height: 250)
+    }
+}
+
+// Add AddVehicleButton after EnhancedVehicleCard
+struct AddVehicleButton: View {
+    var body: some View {
+        VStack {
+            Spacer()
+            
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 32))
+                .foregroundColor(GharTheme.accent)
+            
+            Text("Add Vehicle")
+                .font(.headline)
+                .foregroundColor(GharTheme.textPrimary)
+            
+            Spacer()
+        }
+        .padding(16)
+        .frame(width: 180, height: 160)
+        .background(GharTheme.cardBackground)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(GharTheme.accent.opacity(0.3), lineWidth: 1)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [5]))
+        )
+    }
+}
+
+// Add these bill view components after BillsView
+struct BillSummaryCard: View {
+    var title: String
+    var value: String
+    var icon: String
+    var color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(color)
+                
+                Spacer()
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.callout)
+                    .foregroundColor(GharTheme.textSecondary)
+                
+                Text(value)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(GharTheme.textPrimary)
+            }
+        }
+        .padding(16)
+        .frame(height: 120)
+        .background(GharTheme.cardBackground)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+}
+
+struct UpcomingBillsView: View {
+    var bills: [Bill]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(bills) { bill in
+                BillRow(bill: bill)
+            }
+        }
+        .background(GharTheme.cardBackground)
+        .cornerRadius(12)
+    }
+}
+
+struct BillRow: View {
+    var bill: Bill
+    @State private var isPaid: Bool = false
+    
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter
+    }
+    
+    private var isDueSoon: Bool {
+        let days = Calendar.current.dateComponents([.day], from: Date(), to: bill.dueDate).day ?? 0
+        return days <= 3 && days >= 0
+    }
+    
+    var body: some View {
+        HStack {
+            // Category icon
+            ZStack {
+                Circle()
+                    .fill(categoryColor.opacity(0.2))
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: bill.category.icon)
+                    .font(.system(size: 16))
+                    .foregroundColor(categoryColor)
+            }
+            
+            // Bill details
+            VStack(alignment: .leading, spacing: 4) {
+                Text(bill.name)
+                    .font(.headline)
+                    .foregroundColor(GharTheme.textPrimary)
+                
+                HStack {
+                    Text(bill.category.rawValue)
+                        .font(.subheadline)
+                        .foregroundColor(GharTheme.textSecondary)
+                    
+                    if bill.isRecurring {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 10))
+                            .foregroundColor(GharTheme.textSecondary)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Due date
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("Due \(dateFormatter.string(from: bill.dueDate))")
+                    .font(.subheadline)
+                    .foregroundColor(isDueSoon ? .red : GharTheme.textSecondary)
+                
+                Text("$\(String(format: "%.2f", bill.amount))")
+                    .font(.headline)
+                    .foregroundColor(GharTheme.textPrimary)
+            }
+            
+            // Payment button
+            Button(action: { isPaid.toggle() }) {
+                Image(systemName: isPaid ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 24))
+                    .foregroundColor(isPaid ? .green : GharTheme.textSecondary)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .padding(.leading, 16)
+        }
+        .padding(16)
+        .background(GharTheme.cardBackground)
+        .cornerRadius(8)
+    }
+    
+    private var categoryColor: Color {
+        switch bill.category {
+        case .utilities: return .blue
+        case .housing: return .purple
+        case .transportation: return .orange
+        case .insurance: return .green
+        case .entertainment: return .pink
+        case .other: return .gray
+        }
+    }
+}
+
+struct BillHistoryView: View {
+    var body: some View {
+        PlaceholderTab(title: "Bill History")
+    }
+}
+
+struct RecurringBillsView: View {
+    var bills: [Bill]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(bills) { bill in
+                BillRow(bill: bill)
+            }
+        }
+        .background(GharTheme.cardBackground)
+        .cornerRadius(12)
+    }
+}
+
+struct AddBillView: View {
+    @Binding var isPresented: Bool
+    @State private var name = ""
+    @State private var amount = ""
+    @State private var dueDate = Date()
+    @State private var isRecurring = false
+    @State private var category: Bill.BillCategory = .utilities
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Bill Information")) {
+                    TextField("Bill Name", text: $name)
+                    TextField("Amount", text: $amount)
+                    
+                    DatePicker("Due Date", selection: $dueDate, displayedComponents: .date)
+                    
+                    Toggle("Recurring Bill", isOn: $isRecurring)
+                    
+                    Picker("Category", selection: $category) {
+                        ForEach(Bill.BillCategory.allCases) { category in
+                            Text(category.rawValue).tag(category)
+                        }
+                    }
+                }
+                
+                Section {
+                    Button(action: {
+                        // Save bill
+                        isPresented = false
+                    }) {
+                        Text("Save Bill")
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                    }
+                    .foregroundColor(.white)
+                    .listRowBackground(GharTheme.accent)
+                    
+                    Button(action: { isPresented = false }) {
+                        Text("Cancel")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                    }
+                    .foregroundColor(GharTheme.textSecondary)
+                }
+            }
+            .navigationTitle("Add New Bill")
+        }
+        .frame(width: 500, height: 500)
+    }
+}
+
+// Add TimeFramePicker 
+struct TimeFramePicker: View {
+    @Binding var selectedTimeFrame: TimeFrame
+    
+    var body: some View {
+        Picker("Time Frame", selection: $selectedTimeFrame) {
+            ForEach(TimeFrame.allCases) { timeFrame in
+                Text(timeFrame.rawValue).tag(timeFrame)
+            }
+        }
+        .pickerStyle(SegmentedPickerStyle())
+        .frame(width: 300)
+    }
+}
+
+// Add SummaryTile
+struct SummaryTile: View {
+    var title: String
+    var value: String
+    var change: Double
+    var icon: String
+    var iconColor: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(iconColor)
+                
+                Spacer()
+                
+                if change != 0 {
+                    HStack(spacing: 2) {
+                        Image(systemName: change > 0 ? "arrow.up" : "arrow.down")
+                            .font(.system(size: 10))
+                            .foregroundColor(change > 0 ? .red : .green)
+                        
+                        Text("\(abs(change), specifier: "%.1f")%")
+                            .font(.caption2)
+                            .foregroundColor(change > 0 ? .red : .green)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(change > 0 ? Color.red.opacity(0.1) : Color.green.opacity(0.1))
+                    )
+                }
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.callout)
+                    .foregroundColor(GharTheme.textSecondary)
+                
+                Text(value)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(GharTheme.textPrimary)
+            }
+        }
+        .padding(16)
+        .frame(height: 120)
+        .background(GharTheme.cardBackground)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+}
+
+// Add DashboardCard
+struct DashboardCard<Content: View>: View {
+    var title: String
+    var icon: String
+    var content: Content
+    
+    init(title: String, icon: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.icon = icon
+        self.content = content()
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Card header
+            HStack {
+                Label(title, systemImage: icon)
+                    .font(.headline)
+                    .foregroundColor(GharTheme.textPrimary)
+                
+                Spacer()
+                
+                Image(systemName: "ellipsis")
+                    .foregroundColor(GharTheme.textSecondary)
+            }
+            
+            // Card content
+            content
+        }
+        .padding(16)
+        .background(GharTheme.cardBackground)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+}
+
+// Add ExpenseCategoryRow
+struct ExpenseCategoryRow: View {
+    var name: String
+    var amount: String
+    var color: Color
+    var percentage: Double
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text(name)
+                    .font(.subheadline)
+                    .foregroundColor(GharTheme.textPrimary)
+                
+                Spacer()
+                
+                Text(amount)
+                    .font(.subheadline)
+                    .foregroundColor(GharTheme.textPrimary)
+                    .fontWeight(.medium)
+            }
+            
+            // Progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .frame(width: geometry.size.width, height: 6)
+                        .opacity(0.2)
+                        .foregroundColor(Color.gray)
+                    
+                    Rectangle()
+                        .frame(width: min(CGFloat(percentage) / 100.0 * geometry.size.width, geometry.size.width), height: 6)
+                        .foregroundColor(color)
+                }
+                .cornerRadius(3)
+            }
+            .frame(height: 6)
+        }
+    }
+}
+
+// Add missing dashboard cards
+struct BillsCard: View {
+    // Sample upcoming bills
+    private let upcomingBills = [
+        (name: "Electricity", amount: 125.50, dueIn: "3 days"),
+        (name: "Internet", amount: 89.99, dueIn: "1 week"),
+        (name: "Mortgage", amount: 1450.00, dueIn: "2 weeks")
+    ]
+    
+    var body: some View {
+        DashboardCard(title: "Upcoming Bills", icon: "calendar") {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("$1,665.49 due this month")
+                    .font(.headline)
+                    .foregroundColor(GharTheme.textPrimary)
+                
+                Divider()
+                
+                ForEach(upcomingBills, id: \.name) { bill in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(bill.name)
+                                .font(.subheadline)
+                                .foregroundColor(GharTheme.textPrimary)
+                            
+                            Text("Due in \(bill.dueIn)")
+                                .font(.caption)
+                                .foregroundColor(GharTheme.textSecondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Text("$\(String(format: "%.2f", bill.amount))")
+                            .font(.subheadline)
+                            .foregroundColor(GharTheme.textPrimary)
+                    }
+                    .padding(.vertical, 6)
+                    
+                    if bill.name != upcomingBills.last?.name {
+                        Divider()
+                    }
+                }
+                
+                Button(action: {}) {
+                    HStack {
+                        Spacer()
+                        Text("View All Bills")
+                            .fontWeight(.medium)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .padding(.top, 8)
+            }
+        }
+    }
+}
+
+struct SubscriptionsCard: View {
+    var body: some View {
+        DashboardCard(title: "Subscriptions", icon: "repeat.circle") {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("$92.97")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(GharTheme.textPrimary)
+                        
+                        Text("Monthly")
+                            .font(.subheadline)
+                            .foregroundColor(GharTheme.textSecondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("3 active")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(GharTheme.accent)
+                        .cornerRadius(20)
+                }
+                
+                Divider()
+                
+                SubscriptionItem(name: "Netflix", price: "$17.99", renewsOn: "May 15")
+                SubscriptionItem(name: "Spotify", price: "$9.99", renewsOn: "May 22")
+                SubscriptionItem(name: "iCloud+", price: "$2.99", renewsOn: "May 28")
+                
+                Button(action: {}) {
+                    HStack {
+                        Spacer()
+                        Text("Manage Subscriptions")
+                            .fontWeight(.medium)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .padding(.top, 8)
+            }
+        }
+    }
+}
+
+struct SubscriptionItem: View {
+    var name: String
+    var price: String
+    var renewsOn: String
+    
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(subscriptionColor(for: name))
+                .frame(width: 32, height: 32)
+                .overlay(
+                    Text(name.prefix(1))
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                )
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(name)
+                    .font(.subheadline)
+                    .foregroundColor(GharTheme.textPrimary)
+                
+                Text("Renews on \(renewsOn)")
+                    .font(.caption)
+                    .foregroundColor(GharTheme.textSecondary)
+            }
+            
+            Spacer()
+            
+            Text(price)
+                .font(.subheadline)
+                .foregroundColor(GharTheme.textPrimary)
+        }
+        .padding(.vertical, 6)
+    }
+    
+    private func subscriptionColor(for name: String) -> Color {
+        switch name.lowercased() {
+        case "netflix": return .red
+        case "spotify": return .green
+        case "icloud+": return .blue
+        default: return GharTheme.accent
+        }
+    }
+}
+
+struct TodoCard: View {
+    @State private var tasks = [
+        Task(title: "Pay electricity bill", isCompleted: false, dueDate: "Today"),
+        Task(title: "Update car insurance", isCompleted: false, dueDate: "Tomorrow"),
+        Task(title: "Service vehicle", isCompleted: true, dueDate: "Completed"),
+        Task(title: "Review monthly budget", isCompleted: false, dueDate: "May 20")
+    ]
+    
+    var body: some View {
+        DashboardCard(title: "Tasks", icon: "checklist") {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("\(pendingTasks) pending")
+                        .font(.headline)
+                        .foregroundColor(GharTheme.textPrimary)
+                    
+                    Spacer()
+                    
+                    Button(action: {}) {
+                        Image(systemName: "plus")
+                            .foregroundColor(GharTheme.accent)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                
+                Divider()
+                
+                ForEach(Array(tasks.enumerated()), id: \.element.id) { index, task in
+                    HStack {
+                        Button(action: {
+                            toggleTask(at: index)
+                        }) {
+                            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(task.isCompleted ? .green : GharTheme.textSecondary)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Text(task.title)
+                            .font(.subheadline)
+                            .foregroundColor(task.isCompleted ? GharTheme.textSecondary : GharTheme.textPrimary)
+                            .strikethrough(task.isCompleted)
+                        
+                        Spacer()
+                        
+                        Text(task.dueDate)
+                            .font(.caption)
+                            .foregroundColor(task.dueDate == "Today" ? .red : GharTheme.textSecondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+                
+                Button(action: {}) {
+                    HStack {
+                        Spacer()
+                        Text("View All Tasks")
+                            .fontWeight(.medium)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .padding(.top, 8)
+            }
+        }
+    }
+    
+    private var pendingTasks: Int {
+        tasks.filter { !$0.isCompleted }.count
+    }
+    
+    private func toggleTask(at index: Int) {
+        tasks[index].isCompleted.toggle()
+    }
+}
+
+struct Task: Identifiable {
+    let id = UUID()
+    var title: String
+    var isCompleted: Bool
+    var dueDate: String
 }
 
 #Preview {
